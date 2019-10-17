@@ -17,14 +17,13 @@
 package io.datakernel.serializer.asm;
 
 import io.datakernel.codegen.Expression;
-import io.datakernel.codegen.Expressions;
 import io.datakernel.codegen.Variable;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import static io.datakernel.codegen.Expressions.*;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Provides methods for writing primitives
@@ -113,16 +112,16 @@ public final class SerializerExpressions {
 		return ensureRemaining(buf, pos, 8, sequence(
 				jdkUnsafe != null ?
 						call(getUnsafe(), "putLongUnaligned",
-								cast(buf, Object.class), cast(add(value(byteArrayBaseOffset), pos), long.class), value, value(true)) :
+								cast(buf, Object.class), cast(add(value(byteArrayBaseOffset), pos), long.class), value, value(false)) :
 						sequence(
-								setArrayItem(buf, add(pos, value(0)), cast(ushr(value, value(56)), byte.class)),
-								setArrayItem(buf, add(pos, value(1)), cast(ushr(value, value(48)), byte.class)),
-								setArrayItem(buf, add(pos, value(2)), cast(ushr(value, value(40)), byte.class)),
-								setArrayItem(buf, add(pos, value(3)), cast(ushr(value, value(32)), byte.class)),
-								setArrayItem(buf, add(pos, value(4)), cast(ushr(value, value(24)), byte.class)),
-								setArrayItem(buf, add(pos, value(5)), cast(ushr(value, value(16)), byte.class)),
-								setArrayItem(buf, add(pos, value(6)), cast(ushr(value, value(8)), byte.class)),
-								setArrayItem(buf, add(pos, value(7)), cast(ushr(value, value(0)), byte.class))),
+								setArrayItem(buf, add(pos, value(7)), cast(ushr(value, value(56)), byte.class)),
+								setArrayItem(buf, add(pos, value(6)), cast(ushr(value, value(48)), byte.class)),
+								setArrayItem(buf, add(pos, value(5)), cast(ushr(value, value(40)), byte.class)),
+								setArrayItem(buf, add(pos, value(4)), cast(ushr(value, value(32)), byte.class)),
+								setArrayItem(buf, add(pos, value(3)), cast(ushr(value, value(24)), byte.class)),
+								setArrayItem(buf, add(pos, value(2)), cast(ushr(value, value(16)), byte.class)),
+								setArrayItem(buf, add(pos, value(1)), cast(ushr(value, value(8)), byte.class)),
+								setArrayItem(buf, add(pos, value(0)), cast(ushr(value, value(0)), byte.class))),
 				set(pos, add(pos, value(8)))));
 	}
 
@@ -181,7 +180,7 @@ public final class SerializerExpressions {
 	}
 
 	public static Expression writeUTF8(Expression buf, Variable pos, Expression value) {
-		return let(call(value, "getBytes", value(UTF_8)),
+		return let(call(value, "getBytes", value(StandardCharsets.UTF_8)),
 				bytes -> sequence(
 						writeVarInt(buf, pos, length(bytes)),
 						writeBytes(buf, pos, bytes)));
@@ -190,7 +189,7 @@ public final class SerializerExpressions {
 	public static Expression writeUTF8Nullable(Expression buf, Variable pos, Expression value) {
 		return ifThenElse(isNull(value),
 				writeByte(buf, pos, value((byte) 0)),
-				let(call(value, "getBytes", value(UTF_8)),
+				let(call(value, "getBytes", value(StandardCharsets.UTF_8, Charset.class)),
 						bytes -> sequence(
 								writeVarInt(buf, pos, add(length(bytes), value(1))),
 								writeBytes(buf, pos, bytes))));
@@ -329,11 +328,13 @@ public final class SerializerExpressions {
 				jdkUnsafe != null ?
 						call(getUnsafe(), "getIntUnaligned",
 								cast(buf, Object.class), cast(add(value(byteArrayBaseOffset), pos), long.class), value(true)) :
-						fold(Expressions::or,
-								shl(and(getArrayItem(buf, add(pos, value(0))), value(0xFF)), value(24)),
-								shl(and(getArrayItem(buf, add(pos, value(1))), value(0xFF)), value(16)),
-								shl(and(getArrayItem(buf, add(pos, value(2))), value(0xFF)), value(8)),
-								shl(and(getArrayItem(buf, add(pos, value(3))), value(0xFF)), value(0))),
+						or(
+								or(
+										shl(and(getArrayItem(buf, add(pos, value(0))), value(0xFF)), value(24)),
+										shl(and(getArrayItem(buf, add(pos, value(1))), value(0xFF)), value(16))),
+								or(
+										shl(and(getArrayItem(buf, add(pos, value(2))), value(0xFF)), value(8)),
+										shl(and(getArrayItem(buf, add(pos, value(3))), value(0xFF)), value(0)))),
 				result -> sequence(
 						set(pos, add(pos, value(4))),
 						result));
@@ -343,16 +344,22 @@ public final class SerializerExpressions {
 		return let(
 				jdkUnsafe != null ?
 						call(getUnsafe(), "getLongUnaligned",
-								cast(buf, Object.class), cast(add(value(byteArrayBaseOffset), pos), long.class), value(true)) :
-						fold(Expressions::or,
-								shl(and(getArrayItem(buf, add(pos, value(0))), value(0xFFL)), value(56)),
-								shl(and(getArrayItem(buf, add(pos, value(1))), value(0xFFL)), value(48)),
-								shl(and(getArrayItem(buf, add(pos, value(2))), value(0xFFL)), value(40)),
-								shl(and(getArrayItem(buf, add(pos, value(3))), value(0xFFL)), value(32)),
-								shl(and(getArrayItem(buf, add(pos, value(4))), value(0xFFL)), value(24)),
-								shl(and(getArrayItem(buf, add(pos, value(5))), value(0xFFL)), value(16)),
-								shl(and(getArrayItem(buf, add(pos, value(6))), value(0xFFL)), value(8)),
-								shl(and(getArrayItem(buf, add(pos, value(7))), value(0xFFL)), value(0))),
+								cast(buf, Object.class), cast(add(value(byteArrayBaseOffset), pos), long.class), value(false)) :
+						or(
+								or(
+										or(
+												shl(and(getArrayItem(buf, add(pos, value(7))), value(0xFFL)), value(56)),
+												shl(and(getArrayItem(buf, add(pos, value(6))), value(0xFFL)), value(48))),
+										or(
+												shl(and(getArrayItem(buf, add(pos, value(5))), value(0xFFL)), value(40)),
+												shl(and(getArrayItem(buf, add(pos, value(4))), value(0xFFL)), value(32)))),
+								or(
+										or(
+												shl(and(getArrayItem(buf, add(pos, value(3))), value(0xFFL)), value(24)),
+												shl(and(getArrayItem(buf, add(pos, value(2))), value(0xFFL)), value(16))),
+										or(
+												shl(and(getArrayItem(buf, add(pos, value(1))), value(0xFFL)), value(8)),
+												shl(and(getArrayItem(buf, add(pos, value(0))), value(0xFFL)), value(0))))),
 				result -> sequence(
 						set(pos, add(pos, value(8))),
 						result));
@@ -426,7 +433,7 @@ public final class SerializerExpressions {
 				value(""),
 				sequence(
 						ensureRemaining(buf, pos, len,
-								constructor(String.class, buf, pos, len, value(UTF_8, Charset.class))),
+								constructor(String.class, buf, pos, len, value(StandardCharsets.UTF_8, Charset.class))),
 						set(pos, add(pos, len))));
 	}
 
@@ -486,7 +493,8 @@ public final class SerializerExpressions {
 	private static Expression constructUTF16String(Expression buf, Variable pos, Expression len) {
 		return constructor(String.class, let(newArray(char[].class, len), arr ->
 						sequence(loop(value(0), len, i ->
-										setArrayItem(arr, i, cast(readShort(buf, pos), char.class))),
+										setArrayItem(arr, i, let(add(pos, mul(i, value(2))), newPos -> readChar(buf, newPos)))),
+								set(pos, add(pos, mul(len, value(2)))),
 								arr)),
 				value(0), len);
 	}
