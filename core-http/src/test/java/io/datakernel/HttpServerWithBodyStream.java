@@ -5,20 +5,19 @@ import io.datakernel.common.ref.RefInt;
 import io.datakernel.common.ref.RefLong;
 import io.datakernel.csp.ChannelSupplier;
 import io.datakernel.eventloop.Eventloop;
+import io.datakernel.eventloop.net.SocketSettings;
 import io.datakernel.http.AsyncHttpClient;
 import io.datakernel.http.AsyncHttpServer;
 import io.datakernel.http.HttpRequest;
 import io.datakernel.http.HttpResponse;
 import io.datakernel.promise.Promise;
-import org.junit.Ignore;
+import io.datakernel.promise.Promises;
 
 import java.io.IOException;
 import java.time.Duration;
 
 import static io.datakernel.bytebuf.ByteBufStrings.wrapUtf8;
-import static io.datakernel.promise.Promises.repeat;
 
-@Ignore
 public final class HttpServerWithBodyStream {
 	private static final int PORT = 8080;
 	private static final boolean USE_KEEP_ALIVE = true;
@@ -30,6 +29,7 @@ public final class HttpServerWithBodyStream {
 				.withListenPort(PORT);
 
 		AsyncHttpClient client = AsyncHttpClient.create(eventloop)
+				.withSocketSettings(SocketSettings.create().withTcpNoDelay(true))
 				.withKeepAliveTimeout(Duration.ofSeconds(USE_KEEP_ALIVE ? 1 : 0));
 
 		try {
@@ -40,29 +40,31 @@ public final class HttpServerWithBodyStream {
 
 		RefInt counter = new RefInt(0);
 		RefLong time = new RefLong(System.currentTimeMillis());
-		eventloop.post(() -> repeat(() -> {
-					HttpRequest request = HttpRequest.get("http://127.0.0.1:" + PORT);
-					ByteBuf buf = wrapUtf8("Hello");
-					if (USE_BODY_STREAM) {
-						request.withBodyStream(ChannelSupplier.of(buf));
-					} else {
-						request.withBody(buf);
-					}
-					return client.request(request)
-							.thenEx((response, e) -> {
-								if (e == null) {
-									if (++counter.value % 1000 == 0) {
-										long now = System.currentTimeMillis();
-										System.out.printf("Count: %,d, took %,d ms\n", counter.value, now - time.value);
-										time.value = now;
-									}
-								} else {
-									System.out.println("Failed at count: " + (counter.value + 1));
-									e.printStackTrace();
-								}
-								return Promise.of(null, e);
-							});
-				})
+		eventloop.post(() ->
+				Promises.repeat(
+						() -> {
+							HttpRequest request = HttpRequest.get("http://127.0.0.1:" + PORT);
+							ByteBuf buf = wrapUtf8("Hello");
+							if (USE_BODY_STREAM) {
+								request.withBodyStream(ChannelSupplier.of(buf));
+							} else {
+								request.withBody(buf);
+							}
+							return client.request(request)
+									.thenEx((response, e) -> {
+										if (e == null) {
+											if (++counter.value % 1000 == 0) {
+												long now = System.currentTimeMillis();
+												System.out.printf("Count: %,d, took %,d ms\n", counter.value, now - time.value);
+												time.value = now;
+											}
+										} else {
+											System.out.println("Failed at count: " + (counter.value + 1));
+											e.printStackTrace();
+										}
+										return Promise.of(null, e);
+									});
+						})
 						.whenComplete(server::close)
 		);
 
